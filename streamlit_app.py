@@ -4,8 +4,8 @@ from snowflake.snowpark.context import get_active_session
 from snowflake.snowpark.functions import col, when_matched
 import pandas as pd
 
-# --- Setup ---
-session = get_active_session()
+cnx = st.connection("snowflake")
+session = cnx.session()
 
 # --- TITLE ---
 st.title(":cup_with_straw: Customize Your Smoothie! :cup_with_straw:")
