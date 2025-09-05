@@ -15,7 +15,7 @@ st.title("🥤 Customize Your Smoothie!")
 my_dataframe = session.table("smoothies.public.fruit_options").select(
     col("FRUIT_NAME"), col("SEARCH_ON")
 )
-pd_df = my_dataframe.to_pandas()  # Convert to Pandas for easier lookup
+pd_df = my_dataframe.to_pandas()  # Convert to Pandas to use .loc
 
 # --- Ingredient Multiselect ---
 ingredients_list = st.multiselect(
@@ -36,11 +36,8 @@ if ingredients_list:
         # API call
         fruityvice_response = requests.get(f"https://fruityvice.com/api/fruit/{search_on}")
 
-        # Check if response is OK
-        if fruityvice_response.status_code == 200:
-            st.dataframe(data=fruityvice_response.json(), use_container_width=True)
-        else:
-            st.write(f"No nutrition data found for {fruit_chosen}")
+        # Show response in table format
+        st.dataframe(data=fruityvice_response.json(), use_container_width=True)
 
 # --- Smoothie Order Submission Section ---
 st.header("🧾 Place a New Smoothie Order")
@@ -49,13 +46,12 @@ name_on_order = st.text_input("Name on Smoothie:")
 
 if name_on_order and ingredients_list:
     ingredients_string = ', '.join(ingredients_list)
-
+    insert_stmt = f"""
+        INSERT INTO smoothies.public.orders (ingredients, name_on_order)
+        VALUES ('{ingredients_string}', '{name_on_order}')
+    """
     if st.button("📤 Submit Order"):
-        # Using parameterized insert for safety; adjust if your driver doesn't support this syntax
-        session.sql(
-            "INSERT INTO smoothies.public.orders (ingredients, name_on_order) VALUES (%s, %s)",
-            (ingredients_string, name_on_order)
-        ).collect()
+        session.sql(insert_stmt).collect()
         st.success("✅ Your Smoothie has been ordered!")
 
 # --- Pending Orders Section ---
@@ -90,3 +86,4 @@ if not pending_orders_df.empty:
             st.success("Orders updated successfully!", icon="👍")
         except Exception as e:
             st.error(f"Something went wrong: {e}")
+
