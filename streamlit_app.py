@@ -82,7 +82,7 @@ st.header("🧾 Place a New Smoothie Order")
 name_on_order = st.text_input("Name on Smoothie:")
 
 if name_on_order and ingredients_list:
-    ingredients_string = ', '.join(ingredients_list)
+    ingredients_string = ' '.join(ingredients_list)
     insert_stmt = f"""
         INSERT INTO smoothies.public.orders (ingredients, name_on_order, order_ts)
         VALUES ('{ingredients_string}', '{name_on_order}', CURRENT_TIMESTAMP)
