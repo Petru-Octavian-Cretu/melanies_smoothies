@@ -28,31 +28,31 @@ ingredients_list = st.multiselect(
     max_selections=5
 )
 
-# --- Helper function to get API search term handling plurals and case ---
+# --- Helper function to get API search term forcing singular ---
 def get_search_on_for_fruit(fruit_chosen, df):
     fruit_lower = fruit_chosen.lower().strip()
     
     # Try exact match (case insensitive)
     exact_match = df[df['FRUIT_NAME'].str.lower() == fruit_lower]
     if not exact_match.empty:
-        return exact_match['SEARCH_ON'].iloc[0].strip().lower()
-    
-    # Try removing trailing 's' (simple plural handling)
-    if fruit_lower.endswith('s'):
-        singular = fruit_lower[:-1]
-        singular_match = df[df['FRUIT_NAME'].str.lower() == singular]
-        if not singular_match.empty:
-            return singular_match['SEARCH_ON'].iloc[0].strip().lower()
-    
-    # Try adding trailing 's' (in case API uses plural)
-    if not fruit_lower.endswith('s'):
-        plural = fruit_lower + 's'
-        plural_match = df[df['FRUIT_NAME'].str.lower() == plural]
-        if not plural_match.empty:
-            return plural_match['SEARCH_ON'].iloc[0].strip().lower()
+        search_on = exact_match['SEARCH_ON'].iloc[0].strip().lower()
+    else:
+        # Try removing trailing 's' from fruit_chosen and match again
+        if fruit_lower.endswith('s'):
+            singular = fruit_lower[:-1]
+            singular_match = df[df['FRUIT_NAME'].str.lower() == singular]
+            if not singular_match.empty:
+                search_on = singular_match['SEARCH_ON'].iloc[0].strip().lower()
+            else:
+                return None
+        else:
+            return None
 
-    # No match found
-    return None
+    # Force singular: if search_on ends with 's', remove it
+    if search_on.endswith('s'):
+        search_on = search_on[:-1]
+
+    return search_on
 
 # --- Show Nutrition Info from Fruityvice API ---
 if ingredients_list:
