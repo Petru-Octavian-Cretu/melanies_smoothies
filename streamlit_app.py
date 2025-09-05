@@ -3,7 +3,6 @@ from snowflake.snowpark.functions import col, when_matched
 import requests
 import pandas as pd
 
-# --- Titlu aplicație ---
 st.title("🥤 My Parents New Healthier Diner")
 st.write("Omega 3 & Blueberry Oatmeal")
 
@@ -46,7 +45,7 @@ if ingredients_list:
     # --- Insert Order ---
     my_insert_stmt = f"""
         INSERT INTO smoothies.public.orders (ingredients, name_on_order, order_ts)
-        VALUES ('{ingredients_string.strip()}', '{name_on_order}', CURRENT_TIMESTAMP)
+        VALUES ('{ingredients_string}', '{name_on_order}', CURRENT_TIMESTAMP)
     """
 
     if st.button('📤 Submit Order'):
