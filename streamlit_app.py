@@ -26,26 +26,30 @@ ingredients_list = st.multiselect(
 
 # --- Show Nutrition Info from Fruityvice API ---
 if ingredients_list:
-    ingredients_string = ''  # Initialize empty string
-    
+    ingredients_string = ''  # Start with empty string
+
     for fruit_chosen in ingredients_list:
-        # Append fruit names separated by space
+        # Add fruit name to ingredients string
         ingredients_string += fruit_chosen + ' '
-        
-        # Find corresponding search term from dataframe
+
+        # Find corresponding API search name
         search_on = pd_df.loc[pd_df['FRUIT_NAME'] == fruit_chosen, 'SEARCH_ON'].iloc[0]
-        
-        # Show subheader
-        st.subheader(fruit_chosen + ' Nutrition Information')
-        
-        # Fetch nutrition data from Fruityvice API
-        fruityvice_response = requests.get("https://fruityvice.com/api/fruit/" + search_on)
-        
-        # Display the response in a dataframe
-        st.dataframe(data=fruityvice_response.json(), use_container_width=True)
-    
-    # Optional: show concatenated ingredient string
-    # st.write(ingredients_string)
+        search_on_clean = search_on.strip().lower()  # Clean just in case
+
+        # Display subheader
+        st.subheader(f"{fruit_chosen} Nutrition Information")
+
+        # API call
+        url = f"https://fruityvice.com/api/fruit/{search_on_clean}"
+        response = requests.get(url)
+
+        if response.status_code == 200:
+            # Show data in table format
+            st.dataframe(data=response.json(), use_container_width=True)
+        elif response.status_code == 404:
+            st.warning(f"⚠️ '{fruit_chosen}' not found in Fruityvice API.")
+        else:
+            st.error(f"❌ Error fetching data for '{fruit_chosen}' (HTTP {response.status_code})")
 
 # --- Smoothie Order Submission Section ---
 st.header("🧾 Place a New Smoothie Order")
@@ -55,11 +59,13 @@ name_on_order = st.text_input("Name on Smoothie:")
 if name_on_order and ingredients_list:
     ingredients_string = ', '.join(ingredients_list)
     if st.button("📤 Submit Order"):
-        # Use parameterized query for safe insert
-        session.sql(
-            "INSERT INTO smoothies.public.orders (ingredients, name_on_order) VALUES (?, ?)"
-        ).bind(ingredients_string, name_on_order).execute()
-        st.success("✅ Your Smoothie has been ordered!")
+        try:
+            session.sql(
+                "INSERT INTO smoothies.public.orders (ingredients, name_on_order) VALUES (?, ?)"
+            ).bind(ingredients_string, name_on_order).execute()
+            st.success("✅ Your Smoothie has been ordered!")
+        except Exception as e:
+            st.error(f"Error submitting order: {e}")
 
 # --- Pending Orders Section ---
 st.header("📋 View Pending Orders")
@@ -89,7 +95,7 @@ if not pending_orders_df.empty:
                 edited_dataset,
                 original_dataset["ORDER_UID"] == edited_dataset["ORDER_UID"],
                 [when_matched().update({"ORDER_FILLED": edited_dataset["ORDER_FILLED"]})]
-            ).execute()  # Important: execute the merge
+            ).execute()
             st.success("Orders updated successfully!", icon="👍")
         except Exception as e:
             st.error(f"Something went wrong: {e}")
