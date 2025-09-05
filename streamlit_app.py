@@ -82,7 +82,7 @@ st.header("🧾 Place a New Smoothie Order")
 name_on_order = st.text_input("Name on Smoothie:")
 
 if name_on_order and ingredients_list:
-    # --- Construirea ingredients_string fără virgule ---
+    # --- Construirea ingredients_string folosind bucla for ---
     ingredients_string = ''
     for fruit_chosen in ingredients_list:
         ingredients_string += fruit_chosen + ' '
