@@ -132,7 +132,7 @@ if not pending_orders_df.empty:
                 edited_dataset,
                 original_dataset["ORDER_UID"] == edited_dataset["ORDER_UID"],
                 [when_matched().update({"ORDER_FILLED": edited_dataset["ORDER_FILLED"]})]
-            ).execute()
+            )
             st.success("Orders updated successfully!", icon="👍")
         except Exception as e:
             st.error(f"Something went wrong: {e}")
