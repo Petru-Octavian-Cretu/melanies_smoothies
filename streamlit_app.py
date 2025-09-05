@@ -75,4 +75,4 @@ if not pending_orders_df.empty:
             st.error(f"Something went wrong: {e}")
 import requests
 smoothiefroot_response = requests.get("https://my.smoothiefroot.com/api/fruit/watermelon")
-st.text(smoothiefroot_response)
+st.text(smoothiefroot_response.json())
