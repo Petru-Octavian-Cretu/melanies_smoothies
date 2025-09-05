@@ -28,16 +28,43 @@ ingredients_list = st.multiselect(
     max_selections=5
 )
 
+# --- Helper function to get API search term handling plurals and case ---
+def get_search_on_for_fruit(fruit_chosen, df):
+    fruit_lower = fruit_chosen.lower().strip()
+    
+    # Try exact match (case insensitive)
+    exact_match = df[df['FRUIT_NAME'].str.lower() == fruit_lower]
+    if not exact_match.empty:
+        return exact_match['SEARCH_ON'].iloc[0].strip().lower()
+    
+    # Try removing trailing 's' (simple plural handling)
+    if fruit_lower.endswith('s'):
+        singular = fruit_lower[:-1]
+        singular_match = df[df['FRUIT_NAME'].str.lower() == singular]
+        if not singular_match.empty:
+            return singular_match['SEARCH_ON'].iloc[0].strip().lower()
+    
+    # Try adding trailing 's' (in case API uses plural)
+    if not fruit_lower.endswith('s'):
+        plural = fruit_lower + 's'
+        plural_match = df[df['FRUIT_NAME'].str.lower() == plural]
+        if not plural_match.empty:
+            return plural_match['SEARCH_ON'].iloc[0].strip().lower()
+
+    # No match found
+    return None
+
 # --- Show Nutrition Info from Fruityvice API ---
 if ingredients_list:
     for fruit_chosen in ingredients_list:
-        # Get the corresponding search term (API-friendly name)
-        search_on = pd_df.loc[pd_df['FRUIT_NAME'] == fruit_chosen, 'SEARCH_ON'].iloc[0]
-        search_on_clean = search_on.strip().lower()
-
+        search_on = get_search_on_for_fruit(fruit_chosen, pd_df)
+        if not search_on:
+            st.warning(f"⚠️ Could not find API search term for '{fruit_chosen}'. Skipping.")
+            continue
+        
         st.subheader(f"{fruit_chosen} Nutrition Information")
 
-        url = f"https://fruityvice.com/api/fruit/{search_on_clean}"
+        url = f"https://fruityvice.com/api/fruit/{search_on}"
         fruityvice_response = requests.get(url)
 
         if fruityvice_response.status_code == 200:
@@ -86,7 +113,6 @@ if not pending_orders_df.empty:
         original_dataset = session.table("smoothies.public.orders")
 
         try:
-            # Merge updates with .execute()
             original_dataset.merge(
                 edited_dataset,
                 original_dataset["ORDER_UID"] == edited_dataset["ORDER_UID"],
@@ -95,4 +121,3 @@ if not pending_orders_df.empty:
             st.success("Orders updated successfully!", icon="👍")
         except Exception as e:
             st.error(f"Something went wrong: {e}")
-
