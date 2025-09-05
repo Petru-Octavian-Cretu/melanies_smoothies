@@ -1,14 +1,15 @@
-
 import streamlit as st
 from snowflake.snowpark.context import get_active_session
 from snowflake.snowpark.functions import col, when_matched
 import pandas as pd
+import requests
 
+# --- Snowflake Connection ---
 cnx = st.connection("snowflake")
 session = cnx.session()
 
 # --- TITLE ---
-st.title('My Parents New Healthy Diner') 
+st.title('My Parents New Healthy Diner')
 
 # --- Smoothie Order Section ---
 st.header("🧾 Place a New Smoothie Order")
@@ -37,6 +38,22 @@ if name_on_order and ingredients_list:
     if st.button("📤 Submit Order"):
         session.sql(insert_stmt).collect()
         st.success("✅ Your Smoothie has been ordered!")
+
+# --- Nutrition Info Section ---
+if ingredients_list:
+    st.subheader("🍓 Nutrition Info for Selected Fruits")
+
+    for fruit in ingredients_list:
+        # Make API call for each fruit
+        try:
+            response = requests.get(f"https://my.smoothiefroot.com/api/fruit/{fruit.lower()}")
+            if response.status_code == 200:
+                fruit_data = response.json()
+                st.dataframe(data=fruit_data, use_container_width=True)
+            else:
+                st.warning(f"No data found for {fruit}")
+        except Exception as e:
+            st.error(f"Error fetching data for {fruit}: {e}")
 
 # --- Pending Orders Section ---
 st.header("📋 View Pending Orders")
@@ -73,8 +90,3 @@ if not pending_orders_df.empty:
             st.success("Orders updated successfully!", icon="👍")
         except Exception as e:
             st.error(f"Something went wrong: {e}")
-import requests
-smoothiefroot_response = requests.get("https://my.smoothiefroot.com/api/fruit/watermelon")
-st.text(smoothiefroot_response.json())
-sf_df = st.dataframe(data=smoothiefroot_response.json(), use_container_width=True)
-
