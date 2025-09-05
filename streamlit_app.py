@@ -78,12 +78,12 @@ if not pending_orders_df.empty:
         original_dataset = session.table("smoothies.public.orders")
 
         try:
+            # Merge updates WITHOUT .execute()
             original_dataset.merge(
                 edited_dataset,
                 original_dataset["ORDER_UID"] == edited_dataset["ORDER_UID"],
                 [when_matched().update({"ORDER_FILLED": edited_dataset["ORDER_FILLED"]})]
-            ).execute()
+            )
             st.success("Orders updated successfully!", icon="👍")
         except Exception as e:
             st.error(f"Something went wrong: {e}")
-
