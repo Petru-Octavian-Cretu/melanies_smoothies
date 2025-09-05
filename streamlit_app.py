@@ -1,16 +1,15 @@
-# --- Imports ---
 import streamlit as st
-import pandas as pd
-import requests
 from snowflake.snowpark.context import get_active_session
 from snowflake.snowpark.functions import col, when_matched
+import pandas as pd
+import requests
 
-# --- Snowflake connection ---
+# --- Snowflake Connection ---
 cnx = st.connection("snowflake")
 session = cnx.session()
 
 # --- Title ---
-st.title('My Parents New Healthy Diner')
+st.title('My Parents New Healthy Diner') 
 
 # --- Smoothie Order Section ---
 st.header("🧾 Place a New Smoothie Order")
@@ -29,27 +28,9 @@ ingredients_list = st.multiselect(
     max_selections=5
 )
 
-# --- Display Nutrition Info and Prepare Ingredients String ---
-if ingredients_list:
-    ingredients_string = ''
-    
-    for fruit_chosen in ingredients_list:
-        ingredients_string += fruit_chosen + ', '
-
-        # Show subheader for fruit
-        st.subheader(fruit_chosen + ' Nutrition Information')
-
-        # Fetch data from external API
-        smoothiefroot_response = requests.get(f"https://my.smoothiefroot.com/api/fruit/{fruit_chosen}")
-
-        # Display as a dataframe
-        sf_df = st.dataframe(data=smoothiefroot_response.json(), use_container_width=True)
-
-    # Remove trailing comma and space
-    ingredients_string = ingredients_string.rstrip(', ')
-
-# --- Order submission ---
+# Order submission
 if name_on_order and ingredients_list:
+    ingredients_string = ', '.join(ingredients_list)
     insert_stmt = f"""
         INSERT INTO smoothies.public.orders (ingredients, name_on_order)
         VALUES ('{ingredients_string}', '{name_on_order}')
@@ -57,6 +38,33 @@ if name_on_order and ingredients_list:
     if st.button("📤 Submit Order"):
         session.sql(insert_stmt).collect()
         st.success("✅ Your Smoothie has been ordered!")
+
+# --- Nutrition Information Section ---
+if ingredients_list:
+    ingredients_string = ''
+
+    # Get SEARCH_ON values for each selected fruit
+    search_values = session.table("smoothies.public.fruit_options")\
+        .filter(col("FRUIT_NAME").isin(ingredients_list))\
+        .select("FRUIT_NAME", "SEARCH_ON")\
+        .to_pandas()
+
+    for fruit_chosen in ingredients_list:
+        ingredients_string += fruit_chosen + ', '
+
+        # Look up SEARCH_ON value for the fruit
+        search_term = search_values.loc[
+            search_values['FRUIT_NAME'] == fruit_chosen, 'SEARCH_ON'
+        ].values[0]
+
+        # Display subheader and API data
+        st.subheader(f"{fruit_chosen} Nutrition Information")
+        smoothiefroot_response = requests.get(
+            f"https://my.smoothiefroot.com/api/fruit/{search_term}"
+        )
+        st.dataframe(data=smoothiefroot_response.json(), use_container_width=True)
+
+    ingredients_string = ingredients_string.rstrip(', ')
 
 # --- Pending Orders Section ---
 st.header("📋 View Pending Orders")
@@ -75,12 +83,10 @@ else:
 # --- Update Orders Section ---
 st.header("✅ Mark Orders as Filled")
 
-# Make pending orders editable
 if not pending_orders_df.empty:
     editable_df = st.data_editor(pending_orders_df, key="editable_orders")
 
     if st.button("✔️ Submit Updates"):
-        # Convert edited data back to Snowpark DataFrame
         edited_dataset = session.create_dataframe(editable_df)
         original_dataset = session.table("smoothies.public.orders")
 
