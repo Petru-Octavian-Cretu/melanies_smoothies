@@ -17,6 +17,10 @@ my_dataframe = session.table("smoothies.public.fruit_options").select(
 )
 pd_df = my_dataframe.to_pandas()  # Convert to Pandas to use .loc
 
+# Debug: Show fruit names and corresponding search terms
+st.write("Available fruits and their API search keys:")
+st.dataframe(pd_df)
+
 # --- Ingredient Multiselect ---
 ingredients_list = st.multiselect(
     "Choose up to 5 ingredients:",
@@ -26,30 +30,22 @@ ingredients_list = st.multiselect(
 
 # --- Show Nutrition Info from Fruityvice API ---
 if ingredients_list:
-    ingredients_string = ''  # Start with empty string
-
     for fruit_chosen in ingredients_list:
-        # Add fruit name to ingredients string
-        ingredients_string += fruit_chosen + ' '
-
-        # Find corresponding API search name
+        # Get the corresponding search term (API-friendly name)
         search_on = pd_df.loc[pd_df['FRUIT_NAME'] == fruit_chosen, 'SEARCH_ON'].iloc[0]
-        search_on_clean = search_on.strip().lower()  # Clean just in case
+        search_on_clean = search_on.strip().lower()
 
-        # Display subheader
         st.subheader(f"{fruit_chosen} Nutrition Information")
 
-        # API call
         url = f"https://fruityvice.com/api/fruit/{search_on_clean}"
-        response = requests.get(url)
+        fruityvice_response = requests.get(url)
 
-        if response.status_code == 200:
-            # Show data in table format
-            st.dataframe(data=response.json(), use_container_width=True)
-        elif response.status_code == 404:
+        if fruityvice_response.status_code == 200:
+            st.dataframe(data=fruityvice_response.json(), use_container_width=True)
+        elif fruityvice_response.status_code == 404:
             st.warning(f"⚠️ '{fruit_chosen}' not found in Fruityvice API.")
         else:
-            st.error(f"❌ Error fetching data for '{fruit_chosen}' (HTTP {response.status_code})")
+            st.error(f"❌ Error fetching data for '{fruit_chosen}' (HTTP {fruityvice_response.status_code})")
 
 # --- Smoothie Order Submission Section ---
 st.header("🧾 Place a New Smoothie Order")
@@ -58,14 +54,13 @@ name_on_order = st.text_input("Name on Smoothie:")
 
 if name_on_order and ingredients_list:
     ingredients_string = ', '.join(ingredients_list)
+    insert_stmt = f"""
+        INSERT INTO smoothies.public.orders (ingredients, name_on_order)
+        VALUES ('{ingredients_string}', '{name_on_order}')
+    """
     if st.button("📤 Submit Order"):
-        try:
-            session.sql(
-                "INSERT INTO smoothies.public.orders (ingredients, name_on_order) VALUES (?, ?)"
-            ).bind(ingredients_string, name_on_order).execute()
-            st.success("✅ Your Smoothie has been ordered!")
-        except Exception as e:
-            st.error(f"Error submitting order: {e}")
+        session.sql(insert_stmt).collect()
+        st.success("✅ Your Smoothie has been ordered!")
 
 # --- Pending Orders Section ---
 st.header("📋 View Pending Orders")
@@ -91,6 +86,7 @@ if not pending_orders_df.empty:
         original_dataset = session.table("smoothies.public.orders")
 
         try:
+            # Merge updates with .execute()
             original_dataset.merge(
                 edited_dataset,
                 original_dataset["ORDER_UID"] == edited_dataset["ORDER_UID"],
@@ -99,3 +95,4 @@ if not pending_orders_df.empty:
             st.success("Orders updated successfully!", icon="👍")
         except Exception as e:
             st.error(f"Something went wrong: {e}")
+
