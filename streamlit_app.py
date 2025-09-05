@@ -24,7 +24,7 @@ plural_to_singular = {
     "strawberries": "strawberry",
     "raspberries": "raspberry",
     "blackberries": "blackberry",
-    # add more irregular plurals here if needed
+    # poți adăuga și alte pluraluri neregulate aici
 }
 
 def singularize(word):
@@ -32,7 +32,7 @@ def singularize(word):
     if word in plural_to_singular:
         return plural_to_singular[word]
     elif word.endswith('s'):
-        return word[:-1]  # naive fallback
+        return word[:-1]  # fallback simplu pentru pluraluri regulate
     else:
         return word
 
@@ -40,15 +40,13 @@ def singularize(word):
 def get_search_on_for_fruit(fruit_chosen, df):
     fruit_lower = fruit_chosen.lower().strip()
     
-    # Try exact match (case insensitive)
+    # Caută potrivire exactă
     exact_match = df[df['FRUIT_NAME'].str.lower() == fruit_lower]
     if not exact_match.empty:
         search_on = exact_match['SEARCH_ON'].iloc[0].strip().lower()
     else:
-        # Could add more fuzzy logic here if needed
         return None
     
-    # Singularize with mapping
     search_on_singular = singularize(search_on)
     return search_on_singular
 
@@ -64,7 +62,7 @@ def try_fruityvice_api(search_on):
         response = requests.get(url)
         if response.status_code == 200:
             return response.json()
-    return None  # None if no variant worked
+    return None
 
 # --- Ingredient Multiselect ---
 ingredients_list = st.multiselect(
@@ -132,7 +130,7 @@ if not pending_orders_df.empty:
                 edited_dataset,
                 original_dataset["ORDER_UID"] == edited_dataset["ORDER_UID"],
                 [when_matched().update({"ORDER_FILLED": edited_dataset["ORDER_FILLED"]})]
-            )
+            ).execute()  # Executăm update-ul cu execute()
             st.success("Orders updated successfully!", icon="👍")
         except Exception as e:
             st.error(f"Something went wrong: {e}")
