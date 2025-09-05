@@ -8,19 +8,27 @@ import requests
 cnx = st.connection("snowflake")
 session = cnx.session()
 
-# --- STEP 1: Add SEARCH_ON column if not exists ---
-columns = session.sql("SHOW COLUMNS IN TABLE smoothies.public.fruit_options").collect()
-column_names = [row['column_name'].upper() for row in columns]
+# --- STEP 0: Verify table exists ---
+tables = [row['name'] for row in session.sql("SHOW TABLES IN SCHEMA smoothies.public").collect()]
+if 'FRUIT_OPTIONS' not in tables:
+    st.error("❌ Table 'fruit_options' does not exist in smoothies.public schema.")
+    st.stop()  # oprește scriptul dacă tabelul nu există
 
-if 'SEARCH_ON' not in column_names:
+# --- STEP 1: Add SEARCH_ON column if not exists ---
+columns = [row['column_name'].upper() for row in session.sql("SHOW COLUMNS IN TABLE smoothies.public.fruit_options").collect()]
+if 'SEARCH_ON' not in columns:
     session.sql("ALTER TABLE smoothies.public.fruit_options ADD COLUMN SEARCH_ON STRING").collect()
 
 # --- STEP 2: Copy FRUIT_NAME to SEARCH_ON where SEARCH_ON is NULL ---
-session.sql("""
-    UPDATE smoothies.public.fruit_options
-    SET SEARCH_ON = FRUIT_NAME
-    WHERE SEARCH_ON IS NULL
-""").collect()
+if 'FRUIT_NAME' in columns:
+    session.sql("""
+        UPDATE smoothies.public.fruit_options
+        SET SEARCH_ON = FRUIT_NAME
+        WHERE SEARCH_ON IS NULL
+    """).collect()
+else:
+    st.error("❌ Column 'FRUIT_NAME' does not exist in fruit_options table.")
+    st.stop()
 
 # --- STEP 3: Fix specific plural cases ---
 plural_fixes = {
@@ -82,15 +90,18 @@ st.header("🧾 Place a New Smoothie Order")
 name_on_order = st.text_input("Name on Smoothie:")
 
 if name_on_order and ingredients_list:
-    # --- Construirea ingredients_string folosind bucla for ---
     ingredients_string = ''
     for fruit_chosen in ingredients_list:
         ingredients_string += fruit_chosen + ' '
     ingredients_string = ingredients_string.strip()  # elimină spațiul extra la final
 
+    # Escape apostrofuri pentru SQL
+    ingredients_string_safe = ingredients_string.replace("'", "''")
+    name_on_order_safe = name_on_order.replace("'", "''")
+
     insert_stmt = f"""
         INSERT INTO smoothies.public.orders (ingredients, name_on_order, order_ts)
-        VALUES ('{ingredients_string}', '{name_on_order}', CURRENT_TIMESTAMP)
+        VALUES ('{ingredients_string_safe}', '{name_on_order_safe}', CURRENT_TIMESTAMP)
     """
     if st.button("📤 Submit Order"):
         session.sql(insert_stmt).collect()
