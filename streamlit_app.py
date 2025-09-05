@@ -8,59 +8,32 @@ import requests
 cnx = st.connection("snowflake")
 session = cnx.session()
 
-# --- Page Title ---
-st.title("🥤 Customize Your Smoothie!")
+# --- STEP 1: Add SEARCH_ON column if not exists ---
+columns = session.sql("SHOW COLUMNS IN TABLE smoothies.public.fruit_options").collect()
+column_names = [row['column_name'].upper() for row in columns]
+
+if 'SEARCH_ON' not in column_names:
+    session.sql("ALTER TABLE smoothies.public.fruit_options ADD COLUMN SEARCH_ON STRING").collect()
+
+# --- STEP 2: Copy FRUIT_NAME to SEARCH_ON where SEARCH_ON is NULL ---
+session.sql("""
+    UPDATE smoothies.public.fruit_options
+    SET SEARCH_ON = FRUIT_NAME
+    WHERE SEARCH_ON IS NULL
+""").collect()
+
+# --- STEP 3: Fix specific plural cases (example from course) ---
+session.sql("""
+    UPDATE smoothies.public.fruit_options
+    SET SEARCH_ON = 'Apple'
+    WHERE FRUIT_NAME = 'Apples'
+""").collect()
 
 # --- Load Fruit Options (with SEARCH_ON column) ---
 my_dataframe = session.table("smoothies.public.fruit_options").select(
     col("FRUIT_NAME"), col("SEARCH_ON")
 )
-pd_df = my_dataframe.to_pandas()  # Convert to Pandas to use .loc
-
-# --- Plural to Singular mapping for tricky fruits ---
-plural_to_singular = {
-    "blueberries": "blueberry",
-    "cherries": "cherry",
-    "strawberries": "strawberry",
-    "raspberries": "raspberry",
-    "blackberries": "blackberry",
-    # adaugă alte excepții dacă ai nevoie
-}
-
-def singularize(word):
-    word = word.lower().strip()
-    if word in plural_to_singular:
-        return plural_to_singular[word]
-    elif word.endswith('s'):
-        return word[:-1]  # fallback simplu
-    else:
-        return word
-
-# --- Helper function to get API search term forcing singular ---
-def get_search_on_for_fruit(fruit_chosen, df):
-    fruit_lower = fruit_chosen.lower().strip()
-    
-    exact_match = df[df['FRUIT_NAME'].str.lower() == fruit_lower]
-    if not exact_match.empty:
-        search_on = exact_match['SEARCH_ON'].iloc[0].strip().lower()
-    else:
-        return None
-    
-    return singularize(search_on)
-
-# --- Try Fruityvice API with multiple variants ---
-def try_fruityvice_api(search_on):
-    variants = [
-        search_on,
-        search_on.replace(' ', '-'),
-        search_on.replace(' ', '_')
-    ]
-    for variant in variants:
-        url = f"https://fruityvice.com/api/fruit/{variant}"
-        response = requests.get(url)
-        if response.status_code == 200:
-            return response.json()
-    return None
+pd_df = my_dataframe.to_pandas()  # Convert to Pandas for lookups
 
 # --- Ingredient Multiselect ---
 ingredients_list = st.multiselect(
@@ -72,16 +45,27 @@ ingredients_list = st.multiselect(
 # --- Show Nutrition Info from Fruityvice API ---
 if ingredients_list:
     for fruit_chosen in ingredients_list:
-        search_on = get_search_on_for_fruit(fruit_chosen, pd_df)
-        if not search_on:
-            st.warning(f"⚠️ Could not find API search term for '{fruit_chosen}'. Skipping.")
-            continue
-        
+        # Get search term from SEARCH_ON column (already updated in DB)
+        search_on = pd_df.loc[pd_df['FRUIT_NAME'] == fruit_chosen, 'SEARCH_ON'].iloc[0]
+
         st.subheader(f"{fruit_chosen} Nutrition Information")
 
-        result = try_fruityvice_api(search_on)
-        if result:
-            st.dataframe(data=result, use_container_width=True)
+        # Try multiple variants if needed
+        variants = [
+            search_on,
+            search_on.replace(' ', '-'),
+            search_on.replace(' ', '_')
+        ]
+        response = None
+        for variant in variants:
+            url = f"https://fruityvice.com/api/fruit/{variant.lower()}"
+            res = requests.get(url)
+            if res.status_code == 200:
+                response = res.json()
+                break
+        
+        if response:
+            st.dataframe(data=response, use_container_width=True)
         else:
             st.warning(f"⚠️ Nutrition data not available for '{fruit_chosen}'.")
 
@@ -128,7 +112,8 @@ if not pending_orders_df.empty:
                 edited_dataset,
                 original_dataset["ORDER_UID"] == edited_dataset["ORDER_UID"],
                 [when_matched().update({"ORDER_FILLED": edited_dataset["ORDER_FILLED"]})]
-            )
+            ).execute()  # aici trebuie .execute() ca să se aplice modificările
+
             st.success("Orders updated successfully!", icon="👍")
         except Exception as e:
             st.error(f"Something went wrong: {e}")
