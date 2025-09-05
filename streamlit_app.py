@@ -82,11 +82,13 @@ st.header("🧾 Place a New Smoothie Order")
 name_on_order = st.text_input("Name on Smoothie:")
 
 if name_on_order and ingredients_list:
+    # --- Construirea ingredients_string fără virgule ---
     ingredients_string = ''
     for fruit_chosen in ingredients_list:
         ingredients_string += fruit_chosen + ' '
+    ingredients_string = ingredients_string.strip()  # elimină spațiul extra la final
 
-        insert_stmt = f"""
+    insert_stmt = f"""
         INSERT INTO smoothies.public.orders (ingredients, name_on_order, order_ts)
         VALUES ('{ingredients_string}', '{name_on_order}', CURRENT_TIMESTAMP)
     """
