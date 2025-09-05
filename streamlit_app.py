@@ -1,14 +1,15 @@
+# --- Imports ---
 import streamlit as st
-from snowflake.snowpark.context import get_active_session
-from snowflake.snowpark.functions import col, when_matched
 import pandas as pd
 import requests
+from snowflake.snowpark.context import get_active_session
+from snowflake.snowpark.functions import col, when_matched
 
-# --- Snowflake Connection ---
+# --- Snowflake connection ---
 cnx = st.connection("snowflake")
 session = cnx.session()
 
-# --- TITLE ---
+# --- Title ---
 st.title('My Parents New Healthy Diner')
 
 # --- Smoothie Order Section ---
@@ -28,9 +29,27 @@ ingredients_list = st.multiselect(
     max_selections=5
 )
 
-# Order submission
+# --- Display Nutrition Info and Prepare Ingredients String ---
+if ingredients_list:
+    ingredients_string = ''
+    
+    for fruit_chosen in ingredients_list:
+        ingredients_string += fruit_chosen + ', '
+
+        # Show subheader for fruit
+        st.subheader(fruit_chosen + ' Nutrition Information')
+
+        # Fetch data from external API
+        smoothiefroot_response = requests.get(f"https://my.smoothiefroot.com/api/fruit/{fruit_chosen}")
+
+        # Display as a dataframe
+        sf_df = st.dataframe(data=smoothiefroot_response.json(), use_container_width=True)
+
+    # Remove trailing comma and space
+    ingredients_string = ingredients_string.rstrip(', ')
+
+# --- Order submission ---
 if name_on_order and ingredients_list:
-    ingredients_string = ', '.join(ingredients_list)
     insert_stmt = f"""
         INSERT INTO smoothies.public.orders (ingredients, name_on_order)
         VALUES ('{ingredients_string}', '{name_on_order}')
@@ -38,22 +57,6 @@ if name_on_order and ingredients_list:
     if st.button("📤 Submit Order"):
         session.sql(insert_stmt).collect()
         st.success("✅ Your Smoothie has been ordered!")
-
-# --- Nutrition Info Section ---
-if ingredients_list:
-    st.subheader("🍓 Nutrition Info for Selected Fruits")
-
-    for fruit in ingredients_list:
-        # Make API call for each fruit
-        try:
-            response = requests.get(f"https://my.smoothiefroot.com/api/fruit/{fruit.lower()}")
-            if response.status_code == 200:
-                fruit_data = response.json()
-                st.dataframe(data=fruit_data, use_container_width=True)
-            else:
-                st.warning(f"No data found for {fruit}")
-        except Exception as e:
-            st.error(f"Error fetching data for {fruit}: {e}")
 
 # --- Pending Orders Section ---
 st.header("📋 View Pending Orders")
@@ -72,7 +75,7 @@ else:
 # --- Update Orders Section ---
 st.header("✅ Mark Orders as Filled")
 
-# Reuse dataframe to make it editable
+# Make pending orders editable
 if not pending_orders_df.empty:
     editable_df = st.data_editor(pending_orders_df, key="editable_orders")
 
