@@ -17,16 +17,24 @@ my_dataframe = session.table("smoothies.public.fruit_options").select(
 )
 pd_df = my_dataframe.to_pandas()  # Convert to Pandas to use .loc
 
-# Debug: Show fruit names and corresponding search terms
-st.write("Available fruits and their API search keys:")
-st.dataframe(pd_df)
+# --- Plural to Singular mapping for tricky fruits ---
+plural_to_singular = {
+    "blueberries": "blueberry",
+    "cherries": "cherry",
+    "strawberries": "strawberry",
+    "raspberries": "raspberry",
+    "blackberries": "blackberry",
+    # add more irregular plurals here if needed
+}
 
-# --- Ingredient Multiselect ---
-ingredients_list = st.multiselect(
-    "Choose up to 5 ingredients:",
-    pd_df["FRUIT_NAME"],
-    max_selections=5
-)
+def singularize(word):
+    word = word.lower().strip()
+    if word in plural_to_singular:
+        return plural_to_singular[word]
+    elif word.endswith('s'):
+        return word[:-1]  # naive fallback
+    else:
+        return word
 
 # --- Helper function to get API search term forcing singular ---
 def get_search_on_for_fruit(fruit_chosen, df):
@@ -37,22 +45,33 @@ def get_search_on_for_fruit(fruit_chosen, df):
     if not exact_match.empty:
         search_on = exact_match['SEARCH_ON'].iloc[0].strip().lower()
     else:
-        # Try removing trailing 's' from fruit_chosen and match again
-        if fruit_lower.endswith('s'):
-            singular = fruit_lower[:-1]
-            singular_match = df[df['FRUIT_NAME'].str.lower() == singular]
-            if not singular_match.empty:
-                search_on = singular_match['SEARCH_ON'].iloc[0].strip().lower()
-            else:
-                return None
-        else:
-            return None
+        # Could add more fuzzy logic here if needed
+        return None
+    
+    # Singularize with mapping
+    search_on_singular = singularize(search_on)
+    return search_on_singular
 
-    # Force singular: if search_on ends with 's', remove it
-    if search_on.endswith('s'):
-        search_on = search_on[:-1]
+# --- Try Fruityvice API with multiple variants ---
+def try_fruityvice_api(search_on):
+    variants = [
+        search_on,
+        search_on.replace(' ', '-'),
+        search_on.replace(' ', '_')
+    ]
+    for variant in variants:
+        url = f"https://fruityvice.com/api/fruit/{variant}"
+        response = requests.get(url)
+        if response.status_code == 200:
+            return response.json()
+    return None  # None if no variant worked
 
-    return search_on
+# --- Ingredient Multiselect ---
+ingredients_list = st.multiselect(
+    "Choose up to 5 ingredients:",
+    pd_df["FRUIT_NAME"],
+    max_selections=5
+)
 
 # --- Show Nutrition Info from Fruityvice API ---
 if ingredients_list:
@@ -64,15 +83,11 @@ if ingredients_list:
         
         st.subheader(f"{fruit_chosen} Nutrition Information")
 
-        url = f"https://fruityvice.com/api/fruit/{search_on}"
-        fruityvice_response = requests.get(url)
-
-        if fruityvice_response.status_code == 200:
-            st.dataframe(data=fruityvice_response.json(), use_container_width=True)
-        elif fruityvice_response.status_code == 404:
-            st.warning(f"⚠️ '{fruit_chosen}' not found in Fruityvice API.")
+        result = try_fruityvice_api(search_on)
+        if result:
+            st.dataframe(data=result, use_container_width=True)
         else:
-            st.error(f"❌ Error fetching data for '{fruit_chosen}' (HTTP {fruityvice_response.status_code})")
+            st.warning(f"⚠️ Nutrition data not available for '{fruit_chosen}'.")
 
 # --- Smoothie Order Submission Section ---
 st.header("🧾 Place a New Smoothie Order")
