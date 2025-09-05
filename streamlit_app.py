@@ -22,11 +22,41 @@ session.sql("""
     WHERE SEARCH_ON IS NULL
 """).collect()
 
-# --- STEP 3: Fix specific plural cases (example from course) ---
+# --- STEP 3: Fix specific plural cases ---
 session.sql("""
     UPDATE smoothies.public.fruit_options
     SET SEARCH_ON = 'Apple'
     WHERE FRUIT_NAME = 'Apples'
+""").collect()
+
+session.sql("""
+    UPDATE smoothies.public.fruit_options
+    SET SEARCH_ON = 'Blueberry'
+    WHERE FRUIT_NAME = 'Blueberries'
+""").collect()
+
+session.sql("""
+    UPDATE smoothies.public.fruit_options
+    SET SEARCH_ON = 'Cherry'
+    WHERE FRUIT_NAME = 'Cherries'
+""").collect()
+
+session.sql("""
+    UPDATE smoothies.public.fruit_options
+    SET SEARCH_ON = 'Strawberry'
+    WHERE FRUIT_NAME = 'Strawberries'
+""").collect()
+
+session.sql("""
+    UPDATE smoothies.public.fruit_options
+    SET SEARCH_ON = 'Raspberry'
+    WHERE FRUIT_NAME = 'Raspberries'
+""").collect()
+
+session.sql("""
+    UPDATE smoothies.public.fruit_options
+    SET SEARCH_ON = 'Blackberry'
+    WHERE FRUIT_NAME = 'Blackberries'
 """).collect()
 
 # --- Load Fruit Options (with SEARCH_ON column) ---
@@ -112,7 +142,7 @@ if not pending_orders_df.empty:
                 edited_dataset,
                 original_dataset["ORDER_UID"] == edited_dataset["ORDER_UID"],
                 [when_matched().update({"ORDER_FILLED": edited_dataset["ORDER_FILLED"]})]
-            ).execute()  # aici trebuie .execute() ca să se aplice modificările
+            ).execute()  # .execute() e necesar pentru a aplica schimbările
 
             st.success("Orders updated successfully!", icon="👍")
         except Exception as e:
