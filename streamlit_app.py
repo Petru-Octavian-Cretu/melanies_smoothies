@@ -8,7 +8,7 @@ cnx = st.connection("snowflake")
 session = cnx.session()
 
 # --- TITLE ---
-st.title(":cup_with_straw: Customize Your Smoothie! :cup_with_straw:")
+st.title('My Parents New Healthy Diner') 
 
 # --- Smoothie Order Section ---
 st.header("🧾 Place a New Smoothie Order")
