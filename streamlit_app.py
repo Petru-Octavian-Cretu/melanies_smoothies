@@ -4,50 +4,51 @@ from snowflake.snowpark.functions import col, when_matched
 import pandas as pd
 import requests
 
-# Connect to Snowflake
+# --- Connect to Snowflake ---
 cnx = st.connection("snowflake")
 session = cnx.session()
 
-# --- PAGE TITLE ---
+# --- Page Title ---
 st.title("🥤 Customize Your Smoothie!")
 
-# --- Load Fruit Options from Snowflake ---
+# --- Load Fruit Options (with SEARCH_ON column) ---
 my_dataframe = session.table("smoothies.public.fruit_options").select(
     col("FRUIT_NAME"), col("SEARCH_ON")
 )
-# Convert to Pandas for filtering
-pd_df = my_dataframe.to_pandas()
+pd_df = my_dataframe.to_pandas()  # Convert to Pandas so we can use .loc later
 
-# --- MULTISELECT UI ---
+# --- Ingredient Multiselect ---
 ingredients_list = st.multiselect(
     "Choose up to 5 ingredients:",
     pd_df["FRUIT_NAME"],
     max_selections=5
 )
 
-# --- Display Fruit Nutrition Info ---
+# --- Show Nutrition Info from Fruityvice API ---
 if ingredients_list:
     ingredients_string = ''
 
     for fruit_chosen in ingredients_list:
         ingredients_string += fruit_chosen + ' '
 
-        # Get SEARCH_ON value
+        # Get the corresponding search term
         search_on = pd_df.loc[pd_df['FRUIT_NAME'] == fruit_chosen, 'SEARCH_ON'].iloc[0]
-        st.write(f'The search value for **{fruit_chosen}** is **{search_on}**.')
+        # st.write(f'The search value for {fruit_chosen} is {search_on}.')  # Optional debug
 
-        # Show subheader and fetch API data
+        # Show subheader
         st.subheader(fruit_chosen + ' Nutrition Information')
-        fruityvice_response = requests.get("https://fruityvice.com/api/fruit/" + search_on)
-        sf_df = st.dataframe(data=fruityvice_response.json(), use_container_width=True)
 
-# --- Smoothie Order Submission ---
+        # API call
+        fruityvice_response = requests.get("https://fruityvice.com/api/fruit/" + search_on)
+
+        # Show response in table format
+        fv_df = st.dataframe(data=fruityvice_response.json(), use_container_width=True)
+
+# --- Smoothie Order Submission Section ---
 st.header("🧾 Place a New Smoothie Order")
 
-# Name input
 name_on_order = st.text_input("Name on Smoothie:")
 
-# Submit order to Snowflake
 if name_on_order and ingredients_list:
     ingredients_string = ', '.join(ingredients_list)
     insert_stmt = f"""
@@ -58,8 +59,9 @@ if name_on_order and ingredients_list:
         session.sql(insert_stmt).collect()
         st.success("✅ Your Smoothie has been ordered!")
 
-# --- Pending Orders ---
+# --- Pending Orders Section ---
 st.header("📋 View Pending Orders")
+
 pending_orders_df = session.table("smoothies.public.orders")\
     .filter(col("ORDER_FILLED") == False)\
     .select("ORDER_UID", "NAME_ON_ORDER", "INGREDIENTS", "ORDER_FILLED")\
@@ -70,8 +72,9 @@ if not pending_orders_df.empty:
 else:
     st.info("📭 No pending smoothie orders!")
 
-# --- Editable Orders Section ---
+# --- Update Orders Section ---
 st.header("✅ Mark Orders as Filled")
+
 if not pending_orders_df.empty:
     editable_df = st.data_editor(pending_orders_df, key="editable_orders")
 
